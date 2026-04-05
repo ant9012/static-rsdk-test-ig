@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSDKv5 Launcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent: #ff3cac;
+  --accent2: #cc1a88;
+  --bg: #080810;
+  --panel-bg: #0e0e1a;
+  --panel-border: #1c1c30;
+  --panel-hover: #14142a;
+  --text: #d0d0e0;
+  --text-dim: #606080;
+  --text-bright: #ffffff;
+  --danger: #ff3355;
+  --warn: #ffaa00;
+  --success: #22cc66;
+  --badge-bg: #1a0011;
+  --radius: 6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Share Tech Mono', monospace; }
+
+/* ── Canvas ── */
+#canvas {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: none; background: #000;
+  image-rendering: pixelated;
+}
+
+/* ── Splash ── */
+#splash {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  background: #000; z-index: 900; transition: opacity 0.8s;
+  pointer-events: none;
+}
+#splash .splash-logo {
+  font-family: 'Orbitron', monospace; font-size: 2rem; font-weight: 900;
+  color: var(--accent); text-shadow: 0 0 20px var(--accent); letter-spacing: 6px;
+}
+#splash .splash-sub { font-size: 0.8rem; color: var(--text-dim); letter-spacing: 3px; text-transform: uppercase; }
+.spinner {
+  width: 32px; height: 32px; border: 3px solid #111;
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#splash .progress-bar-wrap {
+  width: 240px; height: 3px; background: #111; border-radius: 2px; overflow: hidden;
+}
+#splash .progress-bar {
+  height: 100%; background: var(--accent); width: 0%;
+  transition: width 0.3s; box-shadow: 0 0 8px var(--accent);
+}
+#splash .splash-status { font-size: 0.72rem; color: var(--text-dim); min-height: 1em; }
+
+/* ── Scanlines overlay ── */
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none; z-index: 9999;
+}
+
+/* ── Setup Panel ── */
+#setupPanel {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  z-index: 800; background: radial-gradient(ellipse at 50% 0%, rgba(ff,3c,ac,0.08) 0%, transparent 60%), var(--bg);
+  transition: opacity 0.5s;
+}
+.setup-card {
+  width: min(720px, 96vw); background: var(--panel-bg);
+  border: 1px solid var(--panel-border); border-radius: 12px;
+  overflow: hidden; box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  display: flex; flex-direction: column; max-height: 92vh;
+}
+.card-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background: linear-gradient(135deg, rgba(ff,3c,ac,0.06) 0%, transparent 60%);
+}
+.engine-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--badge-bg); border: 1px solid var(--accent); border-radius: 4px;
+  padding: 3px 10px; font-size: 0.72rem; color: var(--accent); margin-bottom: 10px;
+  text-transform: uppercase; letter-spacing: 2px;
+}
+.engine-badge::before { content: '▶'; font-size: 0.6rem; }
+.card-title { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 900; color: var(--text-bright); }
+.card-title span { color: var(--accent); }
+.card-subtitle { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; letter-spacing: 1px; }
+
+/* ── Tabs ── */
+.tabs { display: flex; gap: 2px; padding: 8px 16px 0; border-bottom: 1px solid var(--panel-border); background: #0a0a16; }
+.tab-btn {
+  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-dim); font-family: 'Share Tech Mono', monospace; font-size: 0.8rem;
+  cursor: pointer; transition: all 0.2s; border-radius: 4px 4px 0 0;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(ff,3c,ac,0.08); }
+
+/* ── Tab panels ── */
+.tab-panel { padding: 20px 24px; flex: 1; overflow-y: auto; min-height: 260px; max-height: 54vh; }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent2); }
+
+/* ── File Manager ── */
+.fm-toolbar {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;
+}
+.fm-breadcrumb {
+  font-size: 0.75rem; color: var(--text-dim); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.fm-breadcrumb .bc-part {
+  color: var(--accent); cursor: pointer; transition: opacity 0.15s;
+}
+.fm-breadcrumb .bc-part:hover { opacity: 0.7; text-decoration: underline; }
+.fm-breadcrumb .bc-sep { color: var(--text-dim); }
+.fm-list {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.fm-empty {
+  text-align: center; padding: 32px 16px; color: var(--text-dim); font-size: 0.8rem;
+  border: 1px dashed #222; border-radius: var(--radius); line-height: 1.8;
+}
+.fm-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: var(--radius); cursor: default; transition: background 0.12s;
+  border: 1px solid transparent; user-select: none;
+}
+.fm-item:hover { background: var(--panel-hover); border-color: #1e1e30; }
+.fm-item.selected { background: rgba(ff,3c,ac,0.12); border-color: rgba(ff,3c,ac,0.3); }
+.fm-item .fm-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+.fm-item .fm-name { flex: 1; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fm-item .fm-name.dir-name { color: var(--accent); cursor: pointer; }
+.fm-item .fm-name.dir-name:hover { text-decoration: underline; }
+.fm-item .fm-size { font-size: 0.72rem; color: var(--text-dim); width: 64px; text-align: right; flex-shrink: 0; }
+.fm-item .fm-edit-btn {
+  background: none; border: 1px solid #333; border-radius: 3px; color: var(--text-dim);
+  font-size: 0.68rem; padding: 2px 6px; cursor: pointer; font-family: inherit;
+  opacity: 0; transition: opacity 0.15s;
+}
+.fm-item:hover .fm-edit-btn { opacity: 1; }
+.fm-item .fm-edit-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+  border-radius: var(--radius); font-family: 'Share Tech Mono', monospace; font-size: 0.8rem;
+  cursor: pointer; transition: all 0.15s; letter-spacing: 1px; text-transform: uppercase;
+  border: 1px solid; white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent); color: #000; border-color: var(--accent);
+  font-weight: bold; box-shadow: 0 0 20px rgba(ff,3c,ac,0.3);
+}
+.btn-primary:hover {
+  background: var(--accent2); border-color: var(--accent2);
+  box-shadow: 0 0 30px rgba(ff,3c,ac,0.5);
+}
+.btn-outline { background: transparent; color: var(--text); border-color: #333; }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost { background: transparent; color: var(--text-dim); border-color: transparent; }
+.btn-ghost:hover { color: var(--text); border-color: #333; }
+.mini-btn {
+  padding: 4px 10px; font-size: 0.72rem; border-radius: 4px; border: 1px solid #333;
+  background: transparent; color: var(--text-dim); font-family: 'Share Tech Mono', monospace;
+  cursor: pointer; transition: all 0.15s; letter-spacing: 0.5px;
+}
+.mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+.mini-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── INI Editor ── */
+.ini-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.sel {
+  background: #0a0a18; border: 1px solid #2a2a40; border-radius: var(--radius);
+  color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: 0.8rem;
+  padding: 6px 10px; cursor: pointer; flex: 1; min-width: 160px;
+}
+.sel:focus { outline: none; border-color: var(--accent); }
+.ini-editor-wrap { position: relative; }
+.ini-sections { display: flex; flex-direction: column; gap: 14px; }
+.ini-section { border: 1px solid #1e1e30; border-radius: var(--radius); overflow: hidden; }
+.ini-section-header {
+  padding: 8px 14px; background: #111120; font-size: 0.78rem; color: var(--accent);
+  letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
+}
+.ini-section-header::before { content: '['; opacity: 0.5; }
+.ini-section-header::after { content: ']'; opacity: 0.5; }
+.ini-row {
+  display: grid; grid-template-columns: 160px 1fr; gap: 1px;
+  border-top: 1px solid #111;
+}
+.ini-row:first-of-type { border-top: none; }
+.ini-key {
+  padding: 7px 14px; background: #0c0c1a; font-size: 0.78rem;
+  color: var(--text-dim); display: flex; align-items: center; word-break: break-all;
+}
+.ini-val-input {
+  background: #0a0a14; border: none; border-left: 1px solid #111; border-right: none;
+  color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: 0.78rem;
+  padding: 7px 12px; width: 100%; transition: background 0.15s;
+}
+.ini-val-input:focus { outline: none; background: #0f0f22; border-left-color: var(--accent); }
+.ini-status { font-size: 0.72rem; color: var(--text-dim); min-height: 1em; }
+.ini-raw-area {
+  width: 100%; min-height: 220px; background: #070712; border: 1px solid #1e1e30;
+  border-radius: var(--radius); color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem; padding: 12px; resize: vertical; line-height: 1.6;
+}
+.ini-raw-area:focus { outline: none; border-color: var(--accent); }
+
+/* ── Settings ── */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border: 1px solid var(--panel-border); border-radius: var(--radius);
+  margin-bottom: 10px; background: #0a0a16;
+}
+.setting-info { flex: 1; }
+.setting-label { display: block; font-size: 0.85rem; color: var(--text); }
+.setting-desc { display: block; font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0; cursor: pointer; background: #222; border-radius: 24px; transition: 0.2s;
+  border: 1px solid #333;
+}
+.toggle-slider:before {
+  position: absolute; content: ''; height: 16px; width: 16px; left: 3px; bottom: 3px;
+  background: #666; border-radius: 50%; transition: 0.2s;
+}
+input:checked + .toggle-slider { background: var(--accent2); border-color: var(--accent); }
+input:checked + .toggle-slider:before { transform: translateX(20px); background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+/* ── Console ── */
+.console-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.console-status { flex: 1; font-size: 0.72rem; color: var(--text-dim); }
+.console-output {
+  background: #040408; border: 1px solid #111; border-radius: var(--radius);
+  height: 220px; overflow-y: auto; padding: 10px; font-size: 0.72rem; line-height: 1.7;
+}
+.console-output .cline { color: #22cc55; word-break: break-all; }
+.console-output .cline.err { color: #ff4444; }
+.console-output .cline.warn { color: #ffaa00; }
+.console-output .cline.info { color: #44aaff; }
+.console-output .cline.debug { color: #888; }
+.console-output .cline.status { color: var(--accent); }
+
+/* ── Footer ── */
+.card-footer {
+  padding: 16px 24px; border-top: 1px solid var(--panel-border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #0a0a16; flex-wrap: wrap;
+}
+.footer-hint { font-size: 0.72rem; color: var(--text-dim); }
+#launchBtn {
+  padding: 12px 32px; font-size: 0.9rem; letter-spacing: 3px; font-family: 'Orbitron', monospace;
+}
+#launchBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── In-game Overlay ── */
+#overlay {
+  position: fixed; top: 0; right: 0; height: 100%; width: 420px; max-width: 100%;
+  background: var(--panel-bg); border-left: 1px solid var(--panel-border);
+  z-index: 700; display: none; flex-direction: column;
+  box-shadow: -8px 0 40px rgba(0,0,0,0.8);
+  transform: translateX(420px); transition: transform 0.25s ease;
+}
+#overlay.open { transform: translateX(0); }
+.overlay-header {
+  padding: 14px 16px; border-bottom: 1px solid var(--panel-border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  background: linear-gradient(90deg, rgba(ff,3c,ac,0.06), transparent);
+}
+.overlay-title { font-family: 'Orbitron', monospace; font-size: 0.85rem; color: var(--accent); flex: 1; letter-spacing: 2px; }
+.overlay-hint { font-size: 0.7rem; color: var(--text-dim); }
+.overlay-close-btn {
+  background: none; border: 1px solid #333; border-radius: 4px; color: var(--text-dim);
+  width: 28px; height: 28px; cursor: pointer; font-size: 0.9rem; display: flex;
+  align-items: center; justify-content: center; transition: all 0.15s;
+}
+.overlay-close-btn:hover { border-color: var(--danger); color: var(--danger); }
+.overlay-tabs { display: flex; gap: 2px; padding: 6px 10px 0; border-bottom: 1px solid var(--panel-border); background: #0a0a16; flex-shrink: 0; }
+.overlay-tab-btn {
+  display: flex; align-items: center; gap: 5px; padding: 6px 12px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-dim); font-family: 'Share Tech Mono', monospace; font-size: 0.72rem;
+  cursor: pointer; transition: all 0.15s; border-radius: 4px 4px 0 0;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.overlay-tab-btn:hover { color: var(--text); }
+.overlay-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.overlay-panel { padding: 14px 16px; flex: 1; overflow-y: auto; }
+.overlay-panel.hidden { display: none; }
+
+/* ── Drag overlay ── */
+#dropZone {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  border: 3px dashed var(--accent); z-index: 9000; display: none;
+  align-items: center; justify-content: center; font-size: 1.2rem; color: var(--accent);
+  font-family: 'Orbitron', monospace; letter-spacing: 3px;
+}
+#dropZone.active { display: flex; }
+
+/* ── Upload progress ── */
+#uploadProgress {
+  position: fixed; bottom: 20px; right: 20px; background: var(--panel-bg);
+  border: 1px solid var(--panel-border); border-radius: var(--radius);
+  padding: 12px 16px; z-index: 8000; display: none; min-width: 240px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+.up-label { font-size: 0.75rem; margin-bottom: 8px; color: var(--text); }
+.up-bar-wrap { height: 4px; background: #111; border-radius: 2px; overflow: hidden; }
+.up-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s; }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius);
+  padding: 10px 20px; font-size: 0.8rem; color: var(--text);
+  z-index: 9999; opacity: 0; transition: all 0.3s; white-space: nowrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── misc ── */
+.section-title { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+.info-box {
+  padding: 12px; border: 1px dashed #222; border-radius: var(--radius);
+  font-size: 0.78rem; color: var(--text-dim); line-height: 1.7;
+}
+.info-box kbd {
+  background: #111; border: 1px solid #333; border-radius: 3px;
+  padding: 1px 5px; font-size: 0.72rem; color: var(--accent);
+}
+</style>
+</head>
+<body>
+
+<!-- Drop Zone -->
+<div id="dropZone">DROP FILES TO UPLOAD</div>
+
+<!-- Upload Progress -->
+<div id="uploadProgress">
+  <div class="up-label" id="upLabel">Uploading...</div>
+  <div class="up-bar-wrap"><div class="up-bar" id="upBar"></div></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Splash -->
+<div id="splash">
+  <div class="splash-logo">RSDKv5</div>
+  <div class="splash-sub">Sonic Mania</div>
+  <div class="spinner" id="splashSpinner" style="display:none"></div>
+  <div class="progress-bar-wrap" id="splashProgressWrap" style="display:none">
+    <div class="progress-bar" id="splashProgress"></div>
+  </div>
+  <div class="splash-status" id="splashStatus"></div>
+</div>
+
+<!-- Canvas -->
+<canvas id="canvas"></canvas>
+
+<!-- In-game Overlay (toggle with ` key) -->
+<div id="overlay">
+  <div class="overlay-header">
+    <span class="overlay-title">RSDKv5 TOOLS</span>
+    <span class="overlay-hint">Press ` to close</span>
+    <button class="overlay-close-btn" onclick="toggleOverlay(false)" title="Close">✕</button>
+  </div>
+  <div class="overlay-tabs">
+    <button class="overlay-tab-btn active" id="otab-files" onclick="switchOverlayTab('files')">📁 Files</button>
+    <button class="overlay-tab-btn" id="otab-ini" onclick="switchOverlayTab('ini')">⚙ INI</button>
+    <button class="overlay-tab-btn" id="otab-console" onclick="switchOverlayTab('console')">◉ Console</button>
+  </div>
+  <div class="overlay-panel" id="opanel-files">
+    <div id="ovFmToolbar" class="fm-toolbar" style="margin-bottom:10px">
+      <button class="mini-btn" onclick="ovUploadFiles()">Upload</button>
+      <button class="mini-btn" onclick="ovUploadFolder()">Upload Folder</button>
+      <button class="mini-btn danger" id="ovDelBtn" onclick="ovDeleteSelected()" disabled>Delete</button>
+    </div>
+    <div class="fm-breadcrumb" id="ovBreadcrumb"></div>
+    <div class="fm-list" id="ovFileList"></div>
+  </div>
+  <div class="overlay-panel hidden" id="opanel-ini">
+    <div id="ovIniContent">
+      <div class="ini-toolbar">
+        <select class="sel" id="ovIniSelect" onchange="ovLoadIniFile(this.value)" style="flex:1">
+          <option value="">-- Select INI file --</option>
+        </select>
+        <button class="mini-btn" onclick="ovSaveIni()">Save</button>
+        <button class="mini-btn" onclick="ovRefreshIniList()">Refresh</button>
+      </div>
+      <div class="ini-status" id="ovIniStatus">Select a file above to edit.</div>
+      <div id="ovIniEditor" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="overlay-panel hidden" id="opanel-console"><div class="console-toolbar"><span class="console-status" id="ovConsoleStatus">Monitoring...</span><button class="mini-btn danger" onclick="clearConsole()">Clear</button></div><div id="ovConsoleOutput" class="console-output"></div></div>
+</div>
+
+<!-- Setup Panel -->
+<div id="setupPanel">
+  <div class="setup-card">
+    <div class="card-header">
+      <div class="engine-badge">V5 ENGINE PORT</div>
+      <div class="card-title">RSDK<span>5</span> Launcher</div>
+      <div class="card-subtitle">Sonic Mania</div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-files" onclick="switchTab('files')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Files
+      </button>
+      <button class="tab-btn" id="tab-ini" onclick="switchTab('ini')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        INI Editor
+      </button>
+      <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        Settings
+      </button>
+      
+          <button class="tab-btn" id="tab-console" onclick="switchTab('console')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Console
+          </button>
+    </div>
+    <div id="panel-files" class="tab-panel">
+      <div class="section-title">Game Files (Staged)</div>
+      <div class="fm-toolbar">
+        <button class="btn btn-outline" onclick="stageFiles()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Files
+        </button>
+        <button class="btn btn-outline" onclick="stageFolder()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Upload Folder
+        </button>
+        <button class="btn btn-ghost" onclick="clearStaged()" id="clearStagedBtn" style="display:none">Clear All</button>
+      </div>
+      <div id="stagedList" class="fm-list">
+        <div class="fm-empty">
+          No files staged.<br>
+          Upload <strong>Data.rsdk</strong> and any mod files here before launching.<br>
+          ZIP files will be automatically extracted.
+        </div>
+      </div>
+    </div>
+    <div id="panel-ini" class="tab-panel" style="display:none">
+      <div class="section-title">INI Configuration</div>
+      <div class="ini-toolbar">
+        <select class="sel" id="iniFileSelect" onchange="loadStagedIni(this.value)">
+          <option value="">-- Select a staged .ini file --</option>
+        </select>
+        <button class="btn btn-outline" onclick="saveIniToStaged()">Save</button>
+      </div>
+      <div class="ini-status" id="iniStatus">Upload or stage a .ini file to edit it here pre-launch.</div>
+      <div id="iniEditor" style="margin-top:12px"></div>
+      <div style="margin-top:12px" id="iniRawWrap" style="display:none">
+        <div class="section-title" style="margin-bottom:8px">Raw Text Edit</div>
+        <textarea class="ini-raw-area" id="iniRawText" spellcheck="false" oninput="syncRawToEditor()"></textarea>
+      </div>
+    </div>
+    <div id="panel-settings" class="tab-panel" style="display:none">
+      <div class="section-title">Engine Settings</div>
+      
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">Enable Plus DLC</span>
+                  <span class="setting-desc">Unlocks Plus/addon content on supported builds</span>
+                </div>
+                <label class="toggle">
+                  <input type="checkbox" id="togglePlus" onchange="saveSetting('enablePlus', this.checked)">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+      
+      
+      <div class="info-box" style="margin-top:12px">
+        Settings are stored in browser <kbd>localStorage</kbd> and applied at launch.<br>
+        To edit in-game settings (graphics, audio, controls), use the <kbd>INI Editor</kbd> after launching.
+      </div>
+    </div>
+    
+      <div id="panel-console" class="tab-panel" style="display:none">
+        <div class="console-toolbar">
+          <span class="console-status" id="consoleStatus">Engine not running</span>
+          <button class="mini-btn danger" onclick="clearConsole()">Clear</button>
+        </div>
+        <div id="consoleOutput" class="console-output"></div>
+      </div>
+    <div class="card-footer">
+      <div class="footer-hint" id="footerHint">Stage your game files above, then click Launch.</div>
+      <button class="btn btn-primary" id="launchBtn" onclick="launchEngine()">▶ LAUNCH</button>
+    </div>
+  </div>
+</div>
+
+<!-- JSZip CDN for zip extraction -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="coi-serviceworker.js"></script>
+<script>
+// ═══════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════
+const ENG = {
+  fsid: 'RSDKv5',
+  fspath: '/RSDKv5',
+  modSrc: 'modules/RSDKv5.js',
+  hasConsole: true,
+  isV5U: false,
+};
+
+// Inlined lib JS (executed on launch via Blob URL to preserve script origin)
+const LIB_JS = 'var Module = {\n    onRuntimeInitialized: function () {\n        TS_InitFS(\'RSDKv5\',\n            function () {\n                console.log(\'EngineFS initialized\');\n                const splash = document.getElementById("splash");\n                splash.style.opacity = 0;\n                setTimeout(() => { splash.remove(); }, 1000);\n                RSDK_Init();\n            });\n    },\n    print: (function () {\n        var element = document.getElementById(\'output\');\n        if (element) element.value = \'\'; // clear browser cache\n        return function (text) {\n            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(\' \');\n\n            console.log(text);\n            if (element) {\n                element.value += text + "\\n";\n                element.scrollTop = element.scrollHeight; // focus on bottom\n            }\n        };\n    })(),\n    canvas: (() => {\n        var canvas = document.getElementById(\'canvas\');\n        canvas.addEventListener("webglcontextlost", (e) => { alert(\'WebGL context lost. You will need to reload the page.\'); e.preventDefault(); }, false);\n        return canvas;\n    })(),\n    setStatus: (text) => {\n        if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: \'\' };\n        if (text === Module.setStatus.last.text) return;\n        var m = text.match(/([^(]+)\\((\\d+(\\.\\d+)?)\\/(\\d+)\\)/);\n        var now = Date.now();\n        if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon\n        Module.setStatus.last.time = now;\n        Module.setStatus.last.text = text;\n\n        if (m) {\n            text = m[1];\n        }\n\n        console.log(text);\n\n        // statusElement.innerHTML = text;\n    },\n    totalDependencies: 0,\n    monitorRunDependencies: (left) => {\n        this.totalDependencies = Math.max(this.totalDependencies, left);\n        Module.setStatus(left ? \'Preparing... (\' + (this.totalDependencies - left) + \'/\' + this.totalDependencies + \')\' : \'All downloads complete.\');\n    }\n};\nModule.setStatus(\'Downloading...\');\nwindow.onerror = () => {\n    Module.setStatus(\'Exception thrown, see JavaScript console\');\n\n    Module.setStatus = (text) => {\n        if (text) console.error(\'[post-exception status] \' + text);\n    };\n};\n\nfunction RSDK_Init() {\n    FS.chdir(\'/RSDKv5\');\n\n    const storedSettings = localStorage.getItem(\'settings\');\n    if (storedSettings) {\n        const settings = JSON.parse(storedSettings);\n\n        // value, index\n        // index 0 - plus\n        _RSDK_Configure(settings.enablePlus, 0);\n    }\n\n    _RSDK_Initialize();\n}';
+
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let stagedFiles = [];   // {name, file, content (for ini)}
+let engineRunning = false;
+let fsReady = false;
+let setupCurrentTab = 'files';
+let ovCurrentTab = 'files';
+let ovCurrentPath = '/RSDKv5';
+let ovSelectedPaths = new Set();
+let iniData = null;     // parsed ini data
+let iniCurrentFile = null;
+let ovIniData = null;
+let ovIniCurrentFile = null;
+
+// ═══════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════
+function getSettings() {
+  try { return JSON.parse(localStorage.getItem('settings') || '{}'); } catch { return {}; }
+}
+function saveSetting(key, val) {
+  const s = getSettings(); s[key] = val;
+  localStorage.setItem('settings', JSON.stringify(s));
+}
+function loadSettings() {
+  const s = getSettings();
+  const el = document.getElementById('togglePlus');
+  if (el) el.checked = !!s.enablePlus;
+  const dp = document.getElementById('deviceProfile');
+  if (dp) dp.value = s.deviceProfile || 'desktop';
+}
+
+// ═══════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, duration=2400) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ═══════════════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════════════
+function switchTab(tab) {
+  setupCurrentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  document.getElementById('panel-' + tab).style.display = 'block';
+}
+function switchOverlayTab(tab) {
+  ovCurrentTab = tab;
+  document.querySelectorAll('.overlay-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.overlay-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('otab-' + tab)?.classList.add('active');
+  document.getElementById('opanel-' + tab)?.classList.remove('hidden');
+  if (tab === 'files') renderOvFileList();
+  if (tab === 'ini') ovRefreshIniList();
+}
+
+// ═══════════════════════════════════════════════════
+//  STAGED FILES
+// ═══════════════════════════════════════════════════
+function stageFiles() { stageInput(false); }
+function stageFolder() { stageInput(true); }
+function stageInput(dir) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.multiple = true;
+  if (dir) inp.webkitdirectory = true;
+  inp.onchange = () => { if (inp.files?.length) addStagedFiles(Array.from(inp.files)); };
+  inp.click();
+}
+function addStagedFiles(files) {
+  for (const f of files) {
+    const key = f.webkitRelativePath || f.name;
+    if (!stagedFiles.find(s => s.key === key)) {
+      stagedFiles.push({ key, name: f.name, file: f });
+    }
+  }
+  renderStagedList();
+  updateIniSelect();
+}
+function clearStaged() {
+  if (confirm('Clear all staged files?')) {
+    stagedFiles = [];
+    renderStagedList();
+    updateIniSelect();
+  }
+}
+function renderStagedList() {
+  const ul = document.getElementById('stagedList');
+  const cb = document.getElementById('clearStagedBtn');
+  if (!stagedFiles.length) {
+    ul.innerHTML = '<div class="fm-empty">No files staged.<br>Upload <strong>Data.rsdk</strong> and any mod files here before launching.<br>ZIP files will be automatically extracted.</div>';
+    if (cb) cb.style.display = 'none';
+    return;
+  }
+  if (cb) cb.style.display = '';
+  ul.innerHTML = stagedFiles.map((s, i) => `
+    <div class="fm-item">
+      <span class="fm-icon">${getIcon(s.name)}</span>
+      <span class="fm-name">${s.key}</span>
+      <span class="fm-size">${fmtSize(s.file.size)}</span>
+      <button class="fm-edit-btn" onclick="removeStagedFile(${i})">✕</button>
+    </div>`).join('');
+}
+function removeStagedFile(i) {
+  stagedFiles.splice(i, 1);
+  renderStagedList();
+  updateIniSelect();
+}
+function fmtSize(n) {
+  if (n < 1024) return n + 'B';
+  if (n < 1048576) return (n/1024).toFixed(1) + 'K';
+  return (n/1048576).toFixed(1) + 'M';
+}
+function getIcon(name) {
+  const ext = name.split('.').pop()?.toLowerCase();
+  const map = { rsdk:'📦', zip:'🗜', ini:'⚙', cfg:'⚙', txt:'📄', png:'🖼', jpg:'🖼', ogg:'🎵', wav:'🎵', mp3:'🎵' };
+  return map[ext] || '📄';
+}
+
+// ═══════════════════════════════════════════════════
+//  DRAG AND DROP
+// ═══════════════════════════════════════════════════
+document.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropZone').classList.add('active'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.getElementById('dropZone').classList.remove('active'); });
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('active');
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length) {
+    if (engineRunning && fsReady) {
+      await uploadToFS(files);
+    } else {
+      addStagedFiles(files);
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════
+//  INI EDITOR (Pre-launch / staged)
+// ═══════════════════════════════════════════════════
+function updateIniSelect() {
+  const sel = document.getElementById('iniFileSelect');
+  if (!sel) return;
+  const iniFiles = stagedFiles.filter(f => f.name.toLowerCase().endsWith('.ini') || f.name.toLowerCase().endsWith('.cfg'));
+  sel.innerHTML = '<option value="">-- Select a staged .ini file --</option>' +
+    iniFiles.map(f => `<option value="${f.key}">${f.key}</option>`).join('');
+}
+async function loadStagedIni(key) {
+  const s = stagedFiles.find(f => f.key === key);
+  if (!s) { iniData = null; renderIniEditor(null, 'iniEditor'); return; }
+  const text = await s.file.text();
+  iniData = parseINI(text);
+  iniCurrentFile = key;
+  renderIniEditor(iniData, 'iniEditor');
+  document.getElementById('iniStatus').textContent = 'Editing: ' + key;
+  // also show raw
+  const rawWrap = document.getElementById('iniRawWrap');
+  const rawEl = document.getElementById('iniRawText');
+  if (rawWrap) rawWrap.style.display = '';
+  if (rawEl) rawEl.value = text;
+}
+function syncRawToEditor() {
+  const raw = document.getElementById('iniRawText').value;
+  iniData = parseINI(raw);
+  renderIniEditor(iniData, 'iniEditor');
+}
+async function saveIniToStaged() {
+  if (!iniData || !iniCurrentFile) { showToast('No INI file open.'); return; }
+  const text = serializeINI(iniData);
+  const s = stagedFiles.find(f => f.key === iniCurrentFile);
+  if (s) {
+    s.file = new File([text], s.name, { type: 'text/plain' });
+    showToast('Saved to staged files ✓');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  INI EDITOR (Overlay / post-launch)
+// ═══════════════════════════════════════════════════
+function ovRefreshIniList() {
+  if (!fsReady) { document.getElementById('ovIniStatus').textContent = 'Engine not running.'; return; }
+  const sel = document.getElementById('ovIniSelect');
+  const files = findIniFiles(ENG.fspath);
+  sel.innerHTML = '<option value="">-- Select INI file --</option>' +
+    files.map(p => `<option value="${p}">${p.replace(ENG.fspath + '/', '')}</option>`).join('');
+  document.getElementById('ovIniStatus').textContent = files.length ? files.length + ' INI file(s) found.' : 'No INI files found.';
+}
+function ovLoadIniFile(path) {
+  if (!path || !fsReady) return;
+  try {
+    const data = FS.readFile(path, { encoding: 'utf8' });
+    ovIniData = parseINI(data);
+    ovIniCurrentFile = path;
+    renderIniEditor(ovIniData, 'ovIniEditor');
+    document.getElementById('ovIniStatus').textContent = 'Editing: ' + path.replace(ENG.fspath+'/', '');
+  } catch(e) {
+    document.getElementById('ovIniStatus').textContent = 'Error reading file: ' + e.message;
+  }
+}
+async function ovSaveIni() {
+  if (!ovIniData || !ovIniCurrentFile || !fsReady) { showToast('Nothing to save.'); return; }
+  try {
+    const text = serializeINI(ovIniData);
+    FS.writeFile(ovIniCurrentFile, text, { encoding: 'utf8' });
+    await new Promise((resolve, reject) => FS.syncfs(false, e => e ? reject(e) : resolve()));
+    showToast('INI saved ✓');
+    document.getElementById('ovIniStatus').textContent = 'Saved!';
+  } catch(e) { showToast('Save failed: ' + e.message); }
+}
+function findIniFiles(path, results=[]) {
+  try {
+    for (const name of FS.readdir(path)) {
+      if (name === '.' || name === '..') continue;
+      const full = path + '/' + name;
+      const stat = FS.stat(full);
+      if (FS.isDir(stat.mode)) findIniFiles(full, results);
+      else if (name.toLowerCase().endsWith('.ini') || name.toLowerCase().endsWith('.cfg')) results.push(full);
+    }
+  } catch {}
+  return results;
+}
+
+// ═══════════════════════════════════════════════════
+//  INI PARSER / SERIALIZER
+// ═══════════════════════════════════════════════════
+function parseINI(text) {
+  const sections = {};
+  let cur = '__root__';
+  sections[cur] = { _keys: [] };
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith(';') || line.startsWith('#')) continue;
+    const sm = line.match(/^\[(.+)\]$/);
+    if (sm) { cur = sm[1]; sections[cur] = { _keys: [] }; continue; }
+    const eq = line.indexOf('=');
+    if (eq > 0) {
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim();
+      if (!sections[cur][k]) sections[cur]._keys.push(k);
+      sections[cur][k] = v;
+    }
+  }
+  return sections;
+}
+function serializeINI(sections) {
+  let out = '';
+  for (const [sec, data] of Object.entries(sections)) {
+    if (sec !== '__root__') out += `[${sec}]\n`;
+    for (const k of (data._keys || Object.keys(data).filter(k=>k!=='_keys'))) {
+      if (k === '_keys') continue;
+      out += `${k}=${data[k]}\n`;
+    }
+    out += '\n';
+  }
+  return out.trim() + '\n';
+}
+function renderIniEditor(data, containerId) {
+  const el = document.getElementById(containerId);
+  if (!data) { el.innerHTML = ''; return; }
+  let html = '<div class="ini-sections">';
+  for (const [sec, vals] of Object.entries(data)) {
+    if (sec === '__root__' && !vals._keys?.length) continue;
+    html += `<div class="ini-section">`;
+    if (sec !== '__root__') html += `<div class="ini-section-header">${sec}</div>`;
+    const keys = vals._keys?.length ? vals._keys : Object.keys(vals).filter(k=>k!=='_keys');
+    for (const k of keys) {
+      if (k === '_keys') continue;
+      html += `<div class="ini-row">
+        <div class="ini-key">${k}</div>
+        <input class="ini-val-input" value="${(vals[k]||'').replace(/"/g,'&quot;')}"
+          data-section="${sec}" data-key="${k}"
+          oninput="updateIniVal('${containerId}', '${sec}', '${k}', this.value)">
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+function updateIniVal(containerId, sec, key, val) {
+  if (containerId === 'iniEditor' && iniData) {
+    if (!iniData[sec]) iniData[sec] = { _keys: [] };
+    iniData[sec][key] = val;
+  } else if (containerId === 'ovIniEditor' && ovIniData) {
+    if (!ovIniData[sec]) ovIniData[sec] = { _keys: [] };
+    ovIniData[sec][key] = val;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  OVERLAY FILE MANAGER
+// ═══════════════════════════════════════════════════
+function renderOvFileList() {
+  if (!fsReady) {
+    document.getElementById('ovFileList').innerHTML = '<div class="fm-empty">Engine not running yet.</div>';
+    return;
+  }
+  const items = listFS(ovCurrentPath);
+  ovSelectedPaths.clear();
+  updateOvDelBtn();
+  renderBreadcrumb();
+  const el = document.getElementById('ovFileList');
+  if (!items.length) { el.innerHTML = '<div class="fm-empty">Empty directory.</div>'; return; }
+  el.innerHTML = items.map(it => {
+    const isIni = it.name.toLowerCase().endsWith('.ini') || it.name.toLowerCase().endsWith('.cfg');
+    return `<div class="fm-item" onclick="ovSelectItem(this,'${it.path}')" ondblclick="ovOpenItem('${it.path}','${it.isDir}')">
+      <span class="fm-icon">${it.isDir ? '📁' : getIcon(it.name)}</span>
+      <span class="fm-name ${it.isDir ? 'dir-name' : ''}">${it.name}</span>
+      <span class="fm-size">${it.isDir ? '' : fmtSizeFS(it.path)}</span>
+      ${isIni && !it.isDir ? `<button class="fm-edit-btn" onclick="event.stopPropagation();ovEditIni('${it.path}')">Edit INI</button>` : ''}
+    </div>`;
+  }).join('');
+}
+function ovSelectItem(el, path) {
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) ovSelectedPaths.add(path);
+  else ovSelectedPaths.delete(path);
+  updateOvDelBtn();
+}
+function ovOpenItem(path, isDir) {
+  if (isDir === 'true' || isDir === true) {
+    ovCurrentPath = path;
+    renderOvFileList();
+  }
+}
+function ovEditIni(path) {
+  switchOverlayTab('ini');
+  const sel = document.getElementById('ovIniSelect');
+  // Add option if not there
+  let found = Array.from(sel.options).find(o => o.value === path);
+  if (!found) {
+    const opt = new Option(path.replace(ENG.fspath+'/', ''), path);
+    sel.add(opt);
+  }
+  sel.value = path;
+  ovLoadIniFile(path);
+}
+function updateOvDelBtn() {
+  const btn = document.getElementById('ovDelBtn');
+  if (btn) btn.disabled = ovSelectedPaths.size === 0;
+}
+function renderBreadcrumb() {
+  const bc = document.getElementById('ovBreadcrumb');
+  const parts = ovCurrentPath.split('/').filter(Boolean);
+  let html = '<span class="bc-part" onclick="ovNavigateTo('/RSDKv5')">RSDKv5</span>';
+  let built = '/RSDKv5';
+  for (let i = 1; i < parts.length; i++) {
+    built += '/' + parts[i];
+    const p = built;
+    html += ' <span class="bc-sep">/</span> <span class="bc-part" onclick="ovNavigateTo(\'' + p + '\')">' + parts[i] + '</span>';
+  }
+  bc.innerHTML = html;
+}
+function ovNavigateTo(path) { ovCurrentPath = path; renderOvFileList(); }
+function listFS(path) {
+  try {
+    return FS.readdir(path).filter(n => n!=='.'&&n!='..').map(name => {
+      const fp = path + '/' + name;
+      try { const st = FS.stat(fp); return { name, path: fp, isDir: FS.isDir(st.mode) }; } catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
+}
+function fmtSizeFS(path) {
+  try { return fmtSize(FS.stat(path).size); } catch { return ''; }
+}
+async function ovUploadFiles() {
+  const inp = document.createElement('input'); inp.type='file'; inp.multiple=true;
+  inp.onchange = () => inp.files?.length && uploadToFS(Array.from(inp.files));
+  inp.click();
+}
+async function ovUploadFolder() {
+  const inp = document.createElement('input'); inp.type='file'; inp.webkitdirectory=true;
+  inp.onchange = () => inp.files?.length && uploadToFS(Array.from(inp.files));
+  inp.click();
+}
+async function ovDeleteSelected() {
+  if (!ovSelectedPaths.size) return;
+  if (!confirm('Delete ' + ovSelectedPaths.size + ' selected item(s)?')) return;
+  for (const path of ovSelectedPaths) {
+    try { deleteFSItem(path); } catch(e) { console.error(e); }
+  }
+  await syncFS();
+  ovSelectedPaths.clear();
+  renderOvFileList();
+  showToast('Deleted ' + ovSelectedPaths.size + ' item(s)');
+}
+function deleteFSItem(path) {
+  const st = FS.stat(path);
+  if (FS.isDir(st.mode)) {
+    for (const n of FS.readdir(path)) {
+      if (n==='.'||n==='..') continue;
+      deleteFSItem(path+'/'+n);
+    }
+    FS.rmdir(path);
+  } else { FS.unlink(path); }
+}
+
+// ═══════════════════════════════════════════════════
+//  FS UPLOAD (to IDBFS, post-launch)
+// ═══════════════════════════════════════════════════
+let uploadQueue = [];
+let uploading = false;
+async function uploadToFS(files) {
+  uploadQueue.push(...files);
+  if (!uploading) processUploadQueue();
+}
+async function processUploadQueue() {
+  if (!uploadQueue.length) { uploading=false; return; }
+  uploading = true;
+  const up = document.getElementById('uploadProgress');
+  const bar = document.getElementById('upBar');
+  const lbl = document.getElementById('upLabel');
+  up.style.display = 'block';
+  while (uploadQueue.length) {
+    const file = uploadQueue.shift();
+    lbl.textContent = 'Uploading: ' + (file.webkitRelativePath || file.name);
+    bar.style.width = '0%';
+    const relPath = file.webkitRelativePath || file.name;
+    const fullPath = ovCurrentPath + '/' + relPath;
+    // ensure dirs
+    const parts = fullPath.split('/');
+    let cur = '';
+    for (let i=0;i<parts.length-1;i++) {
+      if(!parts[i]) continue;
+      cur += '/'+parts[i];
+      if(!FS.analyzePath(cur).exists) FS.mkdir(cur);
+    }
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      lbl.textContent = 'Extracting: ' + file.name;
+      await extractZipToFS(file, ovCurrentPath);
+    } else {
+      const buf = await file.arrayBuffer();
+      FS.writeFile(fullPath, new Uint8Array(buf), {encoding:'binary'});
+      bar.style.width = '100%';
+    }
+  }
+  await syncFS();
+  up.style.display = 'none';
+  uploading = false;
+  renderOvFileList();
+  showToast('Upload complete ✓');
+}
+async function extractZipToFS(file, targetPath) {
+  const zip = await JSZip.loadAsync(file);
+  const dirs=[], files=[];
+  zip.forEach((path, entry) => {
+    const fp = targetPath+'/'+path;
+    if(entry.dir) dirs.push(fp); else files.push({path:fp,entry});
+  });
+  for(const d of dirs) {
+    const ps = d.split('/'); let c='';
+    for(const p of ps) { if(!p) continue; c+='/'+p; if(!FS.analyzePath(c).exists) FS.mkdir(c); }
+  }
+  for(const {path,entry} of files) {
+    const data = await entry.async('uint8array');
+    const dir = path.split('/').slice(0,-1).join('/');
+    const dps = dir.split('/'); let c='';
+    for(const p of dps) { if(!p) continue; c+='/'+p; if(!FS.analyzePath(c).exists) FS.mkdir(c); }
+    FS.writeFile(path, data, {encoding:'binary'});
+  }
+}
+function syncFS() {
+  return new Promise((resolve,reject)=>FS.syncfs(false,e=>e?reject(e):resolve()));
+}
+
+// ═══════════════════════════════════════════════════
+//  CONSOLE
+// ═══════════════════════════════════════════════════
+function appendConsoleLine(text) {
+  if (!ENG.hasConsole) return;
+  const line = document.createElement('div');
+  line.className = 'cline' + getConsoleClass(text);
+  line.textContent = text;
+  // add to both panels
+  ['consoleOutput','ovConsoleOutput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.appendChild(line.cloneNode(true));
+    // cap at 500 lines
+    while (el.children.length > 500) el.removeChild(el.firstChild);
+    el.scrollTop = el.scrollHeight;
+  });
+}
+function getConsoleClass(t) {
+  if (t.includes('[ERR]')||t.includes('[ERROR]')||t.includes('ERROR')||t.includes('[FATAL]')) return ' err';
+  if (t.includes('[WARN]')||t.includes('WARNING')||t.includes('[WARNING]')) return ' warn';
+  if (t.includes('[INFO]')) return ' info';
+  if (t.includes('[DEBUG]')) return ' debug';
+  if (t.includes('[STATUS]')||t.includes('->')) return ' status';
+  return '';
+}
+function clearConsole() {
+  ['consoleOutput','ovConsoleOutput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+// Intercept console for v5/v5U
+
+(function() {
+  const orig = {log:console.log, warn:console.warn, error:console.error};
+  const prefix = {log:'', warn:'[WARN] ', error:'[ERR] '};
+  for (const m of ['log','warn','error']) {
+    console[m] = function(...args) {
+      const t = args.map(a=>typeof a==='object'?JSON.stringify(a):String(a)).join(' ');
+      appendConsoleLine(prefix[m]+t);
+      orig[m].apply(console, args);
+    };
+  }
+})();
+
+// ═══════════════════════════════════════════════════
+//  OVERLAY TOGGLE
+// ═══════════════════════════════════════════════════
+function toggleOverlay(force) {
+  const ov = document.getElementById('overlay');
+  const isOpen = ov.classList.contains('open');
+  const open = force !== undefined ? force : !isOpen;
+  ov.style.display = open ? 'flex' : 'none';
+  if (open) { setTimeout(() => ov.classList.add('open'), 10); renderOvFileList(); }
+  else ov.classList.remove('open');
+}
+document.addEventListener('keydown', e => {
+  if (engineRunning && (e.key === '`' || e.key === '~')) {
+    e.preventDefault(); toggleOverlay();
+  }
+});
+
+// ═══════════════════════════════════════════════════
+//  SPLASH
+// ═══════════════════════════════════════════════════
+function setSplashStatus(msg) {
+  document.getElementById('splashStatus').textContent = msg;
+}
+function showSplashLoader() {
+  document.getElementById('splashSpinner').style.display = '';
+  document.getElementById('splashProgressWrap').style.display = '';
+}
+function hideSplash() {
+  const el = document.getElementById('splash');
+  el.style.opacity = '0';
+  setTimeout(() => el.remove(), 800);
+}
+
+// ═══════════════════════════════════════════════════
+//  LAUNCH ENGINE
+// ═══════════════════════════════════════════════════
+async function launchEngine() {
+  const btn = document.getElementById('launchBtn');
+  btn.disabled = true;
+  btn.textContent = 'LOADING...';
+  setSplashStatus('Initializing...');
+  showSplashLoader();
+
+  // Setup TS_InitFS before loading lib script
+  window.TS_InitFS = async function(fsid, callback) {
+    try {
+      setSplashStatus('Mounting filesystem...');
+      if (!FS.analyzePath('/'+fsid).exists) FS.mkdir(fsid);
+      FS.mount(IDBFS, {}, '/'+fsid);
+      FS.syncfs(true, async function(err) {
+        if (err) { console.error('FS sync error:', err); return; }
+        setSplashStatus('Uploading staged files...');
+        await uploadStagedToFS(fsid);
+        fsReady = true;
+        setSplashStatus('Starting engine...');
+        callback();
+      });
+    } catch(e) {
+      console.error('TS_InitFS error:', e);
+      btn.disabled = false; btn.textContent = '▶ LAUNCH';
+    }
+  };
+
+  
+
+  // Monitor module download progress
+  window.__moduleDownloadStatus = setSplashStatus;
+
+  // Load lib script → defines Module → then load module script → engine starts
+  // Load lib JS from inlined source via Blob URL (no lib/ folder needed)
+  const libBlob = new Blob([LIB_JS], {type: 'text/javascript'});
+  const libBlobUrl = URL.createObjectURL(libBlob);
+  await loadScript(libBlobUrl);
+  URL.revokeObjectURL(libBlobUrl);
+  // patch Module.setStatus to update splash
+if (window.Module && Module.setStatus) {{
+  const _orig = Module.setStatus.bind(Module);
+  Module.setStatus = function(t) {{ setSplashStatus(t||"Loading..."); _orig(t); }};
+}}
+  await loadScript(ENG.modSrc);
+
+  // Hide setup panel after brief delay
+  setTimeout(() => {
+    document.getElementById('setupPanel').style.opacity = '0';
+    setTimeout(() => {
+      document.getElementById('setupPanel').style.display = 'none';
+      document.getElementById('canvas').style.display = 'block';
+    }, 500);
+  }, 400);
+  engineRunning = true;
+  document.getElementById('footerHint').textContent = 'Engine running. Press ` to open tools overlay.';
+}
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = resolve; s.onerror = reject;
+    document.body.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+//  UPLOAD STAGED FILES TO IDBFS
+// ═══════════════════════════════════════════════════
+async function uploadStagedToFS(fsid) {
+  if (!stagedFiles.length) return;
+  const base = '/'+fsid;
+  for (const staged of stagedFiles) {
+    const relPath = staged.file.webkitRelativePath || staged.file.name;
+    const fullPath = base + '/' + relPath;
+    // ensure parent dirs
+    const parts = fullPath.split('/');
+    let cur = '';
+    for (let i=0; i<parts.length-1; i++) {
+      if(!parts[i]) continue;
+      cur += '/'+parts[i];
+      if(!FS.analyzePath(cur).exists) FS.mkdir(cur);
+    }
+    if (staged.file.name.toLowerCase().endsWith('.zip')) {
+      await extractZipToFS(staged.file, base);
+    } else {
+      const buf = await staged.file.arrayBuffer();
+      FS.writeFile(fullPath, new Uint8Array(buf), {encoding:'binary'});
+    }
+  }
+  await syncFS();
+  showToast('Staged files uploaded ✓');
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  document.getElementById('splash').style.opacity = '0';
+  setTimeout(() => document.getElementById('splash').style.display = 'none', 600);
+});
+</script>
+</body>
+</html>
